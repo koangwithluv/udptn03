@@ -22,9 +22,19 @@ export interface MembershipMessage {
 }
 
 export interface ReplicationMessage {
-    type: 'REPLICATE';
+    type: 'REPL_PUT' | 'REPL_DEL';
     key: string;
-    value: string;
+    value?: string;
+}
+
+export interface SnapshotRequestMessage {
+    type: 'SNAPSHOT_REQUEST';
+    from: string;
+}
+
+export interface SnapshotChunkMessage {
+    type: 'SNAPSHOT_CHUNK';
+    data: Record<string, string>;
 }
 
 // Generic message type used by transport
@@ -33,4 +43,6 @@ export type Message =
     | ResponseMessage
     | HeartbeatMessage
     | MembershipMessage
-    | ReplicationMessage;
+    | ReplicationMessage
+    | SnapshotRequestMessage
+    | SnapshotChunkMessage;

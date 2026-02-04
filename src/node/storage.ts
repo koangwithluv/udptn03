@@ -16,4 +16,8 @@ export class Storage {
     public delete(key: string): void {
         this.store.delete(key);
     }
+
+    public entries(): IterableIterator<[string, string]> {
+        return this.store.entries();
+    }
 }

@@ -1,25 +1,50 @@
 import * as readline from 'readline';
+import * as net from 'net';
+
+type Command = 'PUT' | 'GET' | 'DELETE';
 
 export class Client {
-    private store: Map<string, string>;
+    constructor(private host = '127.0.0.1', private port = 3000) {}
 
-    constructor() {
-        this.store = new Map<string, string>();
+    private send<T = any>(msg: object): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            const socket = net.createConnection({ host: this.host, port: this.port });
+            let buffer = '';
+
+            socket.on('connect', () => {
+                socket.write(JSON.stringify(msg) + '\n');
+            });
+
+            socket.on('data', (chunk) => {
+                buffer += chunk.toString();
+                const idx = buffer.indexOf('\n');
+                if (idx >= 0) {
+                    const raw = buffer.slice(0, idx);
+                    buffer = buffer.slice(idx + 1);
+                    try {
+                        const parsed = JSON.parse(raw) as T;
+                        socket.end();
+                        resolve(parsed);
+                    } catch (e) {
+                        reject(e);
+                    }
+                }
+            });
+
+            socket.on('error', (err) => reject(err));
+        });
     }
 
-    public async put(key: string, value: string): Promise<{ success: boolean }> {
-        this.store.set(key, value);
-        return { success: true };
+    public async put(key: string, value: string): Promise<any> {
+        return this.send({ type: 'PUT' as Command, key, value });
     }
 
-    public async get(key: string): Promise<{ value: string | null }> {
-        const value = this.store.get(key) ?? null;
-        return { value };
+    public async get(key: string): Promise<any> {
+        return this.send({ type: 'GET' as Command, key });
     }
 
-    public async delete(key: string): Promise<{ success: boolean }> {
-        this.store.delete(key);
-        return { success: true };
+    public async delete(key: string): Promise<any> {
+        return this.send({ type: 'DELETE' as Command, key });
     }
 }
 
@@ -28,7 +53,9 @@ const rl = readline.createInterface({
     output: process.stdout
 });
 
-const client = new Client();
+const defaultHost = process.env.KV_HOST || '127.0.0.1';
+const defaultPort = Number(process.env.KV_PORT || '3000');
+const client = new Client(defaultHost, defaultPort);
 
 const promptUser = () => {
     rl.question('Enter command (PUT key value, GET key, DELETE key): ', async (input) => {
@@ -42,8 +69,8 @@ const promptUser = () => {
                         console.log('Usage: PUT key value');
                         break;
                     }
-                    await client.put(key, value);
-                    console.log(`Stored ${key} = ${value}`);
+                    const res = await client.put(key, value);
+                    console.log('Response:', res);
                     break;
                 }
                 case 'GET': {
@@ -51,8 +78,8 @@ const promptUser = () => {
                         console.log('Usage: GET key');
                         break;
                     }
-                    const result = await client.get(key);
-                    console.log(`Value for ${key}: ${result.value ?? 'null'}`);
+                    const res = await client.get(key);
+                    console.log('Response:', res);
                     break;
                 }
                 case 'DELETE': {
@@ -60,8 +87,8 @@ const promptUser = () => {
                         console.log('Usage: DELETE key');
                         break;
                     }
-                    await client.delete(key);
-                    console.log(`Deleted ${key}`);
+                    const res = await client.delete(key);
+                    console.log('Response:', res);
                     break;
                 }
                 default:
@@ -75,8 +102,7 @@ const promptUser = () => {
     });
 };
 
-// Only start the interactive prompt when this file is run directly (not when imported in tests)
 if (require.main === module) {
-    console.log('Welcome to the Distributed Key-Value Store CLI!');
+    console.log(`CLI connecting to ${defaultHost}:${defaultPort}`);
     promptUser();
 }
