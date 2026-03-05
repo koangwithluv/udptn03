@@ -18,21 +18,23 @@ npm install
 ```
 
 ## Chạy nhiều node (ví dụ 3 node)
-Mỗi terminal một lệnh:
+Mỗi terminal một lệnh (giữ cửa sổ mở):
 ```bash
-npx ts-node src/node/index.ts --port 3000 --id node1 --peers 3001,3002
-npx ts-node src/node/index.ts --port 3001 --id node2 --peers 3000,3002
-npx ts-node src/node/index.ts --port 3002 --id node3 --peers 3000,3001
+npx ts-node src/node/index.ts --port=3000 --id=node1 --peers="3001,3002"
+npx ts-node src/node/index.ts --port=3001 --id=node2 --peers="3000,3002"
+npx ts-node src/node/index.ts --port=3002 --id=node3 --peers="3000,3001"
 ```
+Nếu cần đổi cổng, cập nhật cả `--peers` tương ứng.
 
 ## CLI (TCP client)
-- Dùng ts-node (kết nối mặc định 127.0.0.1:3000; đổi bằng KV_HOST/KV_PORT):
+- Dùng ts-node. Hỗ trợ failover nhiều cổng qua biến môi trường `KV_PORTS` (danh sách cổng, phân tách bằng dấu phẩy). Ví dụ kết nối 3 node:
 ```bash
-KV_HOST=127.0.0.1 KV_PORT=3000 npx ts-node src/client/cli.ts
+KV_HOST=127.0.0.1 KV_PORTS=3000,3001,3002 npx ts-node src/client/cli.ts
 ```
+- Nếu chỉ một cổng: dùng `KV_PORT=3000` (hoặc đặt một giá trị duy nhất trong `KV_PORTS`).
 - Sau khi build:
 ```bash
-KV_HOST=127.0.0.1 KV_PORT=3000 node dist/client/cli.js
+KV_HOST=127.0.0.1 KV_PORTS=3000,3001,3002 node dist/client/cli.js
 ```
 
 ### Lệnh trong CLI
@@ -41,6 +43,38 @@ PUT key1 value1
 GET key1
 DELETE key1
 ```
+
+### Quy trình test nhanh (chịu lỗi và forward)
+1) Chạy 3 node (3 terminal, giữ mở):
+```bash
+npx ts-node src/node/index.ts --port=3000 --id=node1 --peers="3001,3002"
+npx ts-node src/node/index.ts --port=3001 --id=node2 --peers="3000,3002"
+npx ts-node src/node/index.ts --port=3002 --id=node3 --peers="3000,3001"
+```
+2) Mở CLI với failover:
+```bash
+KV_HOST=127.0.0.1 KV_PORTS=3000,3001,3002 npx ts-node src/client/cli.ts
+```
+3) Ghi và đọc thử:
+```
+PUT k1 v1
+GET k1          # kỳ vọng v1
+```
+4) Tắt node1 (Ctrl+C ở terminal node1), giữ node2/3. CLI vẫn hoạt động nhờ thử cổng còn sống:
+```
+GET k1          # kỳ vọng vẫn v1
+PUT k2 v2       # ghi thêm khi thiếu 1 node
+```
+5) Khởi động lại node1:
+```bash
+npx ts-node src/node/index.ts --port=3000 --id=node1 --peers="3001,3002"
+```
+6) Kiểm tra lại dữ liệu:
+```
+GET k1
+GET k2
+```
+Nếu dùng Windows PowerShell, thay `KV_HOST=... KV_PORTS=...` bằng `$env:KV_HOST="127.0.0.1"; $env:KV_PORTS="3000,3001,3002";` rồi chạy lệnh.
 
 ## Giao thức tóm tắt
 - Client → Node: `{type:"PUT"|"GET"|"DELETE", key, value?}`

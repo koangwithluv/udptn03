@@ -67,6 +67,9 @@ export class Server {
 
     private handleConnection(socket: net.Socket) {
         let buffer = '';
+        socket.on('error', (err) => {
+            logger.warn(`Socket error from ${socket.remoteAddress ?? ''}:${socket.remotePort ?? ''} - ${err.message}`);
+        });
         socket.on('data', (chunk) => {
             buffer += chunk.toString();
             let idx: number;
@@ -171,7 +174,8 @@ export class Server {
     }
 
     private pickReplicas(key: string): { primary: number; secondary: number } {
-        const nodes = this.allNodes;
+        // Prefer alive nodes (self + peers with fresh heartbeat); if none, fall back to full list
+        const nodes = this.getAliveNodes();
         const h = this.simpleHash(key);
         const idx = h % nodes.length;
         const primary = nodes[idx];
@@ -246,6 +250,19 @@ export class Server {
                 }
             });
         }, this.heartbeatIntervalMs);
+    }
+
+    private getAliveNodes(): number[] {
+        const now = Date.now();
+        const alive = [
+            this.port,
+            ...this.peers.filter((p) => {
+                const last = this.lastSeen.get(p) ?? 0;
+                return now - last <= this.heartbeatTimeoutMs;
+            }),
+        ];
+        const uniq = Array.from(new Set(alive)).sort((a, b) => a - b);
+        return uniq.length ? uniq : this.allNodes;
     }
 }
 

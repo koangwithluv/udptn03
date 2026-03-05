@@ -4,11 +4,25 @@ import * as net from 'net';
 type Command = 'PUT' | 'GET' | 'DELETE';
 
 export class Client {
-    constructor(private host = '127.0.0.1', private port = 3000) {}
+    constructor(private host = '127.0.0.1', private ports: number[] = [3000]) {}
 
-    private send<T = any>(msg: object): Promise<T> {
+    private async sendWithFailover<T = any>(msg: object): Promise<T> {
+        let lastErr: any;
+        for (const port of this.ports) {
+            try {
+                const res = await this.sendOnce<T>(port, msg);
+                return res;
+            } catch (err) {
+                lastErr = err;
+                // try next port
+            }
+        }
+        throw lastErr ?? new Error('No ports available');
+    }
+
+    private sendOnce<T = any>(port: number, msg: object): Promise<T> {
         return new Promise<T>((resolve, reject) => {
-            const socket = net.createConnection({ host: this.host, port: this.port });
+            const socket = net.createConnection({ host: this.host, port });
             let buffer = '';
 
             socket.on('connect', () => {
@@ -36,15 +50,15 @@ export class Client {
     }
 
     public async put(key: string, value: string): Promise<any> {
-        return this.send({ type: 'PUT' as Command, key, value });
+        return this.sendWithFailover({ type: 'PUT' as Command, key, value });
     }
 
     public async get(key: string): Promise<any> {
-        return this.send({ type: 'GET' as Command, key });
+        return this.sendWithFailover({ type: 'GET' as Command, key });
     }
 
     public async delete(key: string): Promise<any> {
-        return this.send({ type: 'DELETE' as Command, key });
+        return this.sendWithFailover({ type: 'DELETE' as Command, key });
     }
 }
 
@@ -54,8 +68,9 @@ const rl = readline.createInterface({
 });
 
 const defaultHost = process.env.KV_HOST || '127.0.0.1';
-const defaultPort = Number(process.env.KV_PORT || '3000');
-const client = new Client(defaultHost, defaultPort);
+const portsEnv = process.env.KV_PORTS || process.env.KV_PORT || '3000';
+const defaultPorts = portsEnv.split(',').map((p) => Number(p.trim())).filter((p) => Number.isFinite(p));
+const client = new Client(defaultHost, defaultPorts.length ? defaultPorts : [3000]);
 
 const promptUser = () => {
     rl.question('Enter command (PUT key value, GET key, DELETE key): ', async (input) => {
@@ -103,6 +118,7 @@ const promptUser = () => {
 };
 
 if (require.main === module) {
-    console.log(`CLI connecting to ${defaultHost}:${defaultPort}`);
+    const portsStr = defaultPorts.join(',');
+    console.log(`CLI connecting to ${defaultHost}:[${portsStr}]`);
     promptUser();
 }
