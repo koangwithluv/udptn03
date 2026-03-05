@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.json.bak
+data-*.json
+data-*.wal
+src/utils/app.log
+*.log

@@ -2,10 +2,12 @@ export class Node {
     private store: Map<string, string>;
     public isRunning: boolean;
     private static globalReplica: Map<string, string> = new Map();
+    private replicas: string[];
 
-    constructor() {
+    constructor(replicas: string[] = []) {
         this.store = new Map<string, string>();
         this.isRunning = true;
+        this.replicas = [...replicas];
     }
 
     public async put(key: string, value: string): Promise<void> {
@@ -37,14 +39,18 @@ export class Node {
     }
 
     public async recoverFromAnotherNode(): Promise<void> {
-        // Simulate recovery by copying from global replica
+        // Recovery by copying from global replica
         this.store = new Map<string, string>(Node.globalReplica);
         this.isRunning = true;
     }
 
-    // Stub: return list of replicas (empty for now)
+    // Return known replicas (ports or addresses)
     public getReplicas(): string[] {
-        return [];
+        return [...this.replicas];
+    }
+
+    public updateMembership(replicas: string[]): void {
+        this.replicas = [...replicas];
     }
 
     // Store data directly, used by recovery flow
@@ -52,6 +58,10 @@ export class Node {
         if (value === undefined) return;
         this.store.set(key, value);
         Node.globalReplica.set(key, value);
+    }
+
+    public hasKey(key: string): boolean {
+        return this.store.has(key);
     }
 
     private ensureRunning(): void {

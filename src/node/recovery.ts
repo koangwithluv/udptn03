@@ -22,9 +22,14 @@ export class Recovery {
     }
 
     private async checkForMissingData(): Promise<string[]> {
-        // Logic to check for missing data in the node's storage
-        // This is a placeholder implementation
-        return [];
+        // Compare local store against global replica view
+        const missing: string[] = [];
+        const replicas = (this.node as any).constructor['globalReplica'] as Map<string, string> | undefined;
+        if (!replicas) return missing;
+        for (const key of replicas.keys()) {
+            if (!this.node.hasKey(key)) missing.push(key);
+        }
+        return missing;
     }
 
     private async requestDataFromReplica(key: string) {
@@ -41,9 +46,9 @@ export class Recovery {
     }
 
     private async sendRecoveryRequest(replica: string, key: string): Promise<ResponseMessage> {
-        const request: RequestMessage = { type: 'GET', key };
-        // Logic to send the request to the replica and wait for the response
-        // This is a placeholder implementation
-        return { type: 'RESPONSE', success: false, data: undefined };
+        // For this simplified implementation we look into the global replica state
+        const replicas = (this.node as any).constructor['globalReplica'] as Map<string, string> | undefined;
+        const data = replicas?.get(key);
+        return { type: 'RESPONSE', success: data !== undefined, data };
     }
 }

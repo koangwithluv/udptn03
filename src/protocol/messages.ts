@@ -17,14 +17,17 @@ export interface HeartbeatMessage {
 }
 
 export interface MembershipMessage {
-    type: 'JOIN' | 'LEAVE';
+    type: 'JOIN' | 'LEAVE' | 'MEMBERSHIP_SNAPSHOT';
     nodeId: string;
+    epoch?: number;
+    peers?: number[];
 }
 
 export interface ReplicationMessage {
     type: 'REPL_PUT' | 'REPL_DEL';
     key: string;
     value?: string;
+    opId?: string;
 }
 
 export interface SnapshotRequestMessage {
@@ -35,6 +38,22 @@ export interface SnapshotRequestMessage {
 export interface SnapshotChunkMessage {
     type: 'SNAPSHOT_CHUNK';
     data: Record<string, string>;
+    seq?: number;
+    total?: number;
+    checksum?: string;
+}
+
+export interface SnapshotDoneMessage {
+    type: 'SNAPSHOT_DONE';
+    totalChunks: number;
+    checksum?: string;
+    version?: number;
+}
+
+export interface RebalancePushMessage {
+    type: 'REBALANCE_PUSH';
+    entries: Record<string, string>;
+    from: number;
 }
 
 // Generic message type used by transport
@@ -45,4 +64,6 @@ export type Message =
     | MembershipMessage
     | ReplicationMessage
     | SnapshotRequestMessage
-    | SnapshotChunkMessage;
+    | SnapshotChunkMessage
+    | SnapshotDoneMessage
+    | RebalancePushMessage;
